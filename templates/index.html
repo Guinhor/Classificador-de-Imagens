@@ -173,7 +173,7 @@
         // Variáveis globais para armazenar dados da última predição
         let currentPredictionId = null;
         let currentPredictedClass = null;
-        let currentOriginalFilename = null; // Para a extensão do arquivo no feedback
+        let currentOriginalFilename = null;
 
         // Preenche o select de classes para correção
         classNames.forEach((name, index) => {
@@ -184,7 +184,7 @@
         });
 
         uploadForm.addEventListener('submit', async (event) => {
-            event.preventDefault();
+            event.preventDefault(); // Impede o envio padrão do formulário
 
             const file = imageInput.files[0];
             if (!file) {
@@ -193,9 +193,11 @@
                 return;
             }
 
+            // Limpa resultados anteriores e mostra spinner
             resetResults();
             loadingSpinner.style.display = 'block';
 
+            // Exibe a imagem selecionada
             const reader = new FileReader();
             reader.onload = function(e) {
                 predictionImage.src = e.target.result;
@@ -217,12 +219,13 @@
 
                 const data = await response.json();
 
-                if (response.ok) {
+                if (response.ok) { // Status 200 OK
                     currentPredictionId = data.prediction_id; // Armazena o ID
                     currentPredictedClass = data.prediction; // Armazena a predição original
 
                     predictionText.textContent = `Predição: ${data.prediction} (Confiança: ${data.confidence})`;
                     
+                    // Exibir todas as probabilidades
                     probabilitiesList.innerHTML = '<h3>Todas as Probabilidades:</h3>';
                     for (const [key, value] of Object.entries(data.all_probabilities)) {
                         const p = document.createElement('p');
@@ -231,24 +234,33 @@
                     }
                     resultContainer.style.display = 'block'; // Mostra o container de resultados
                     showFeedbackButtons(); // Mostra os botões de feedback
-                } else {
+                } else { // Erro da API (ex: 400, 500)
                     errorMessage.textContent = `Erro da API: ${data.error || 'Ocorreu um erro desconhecido.'}`;
                 }
             } catch (error) {
                 console.error('Erro ao enviar a requisição:', error);
                 errorMessage.textContent = `Erro de conexão: ${error.message}. Verifique se o servidor está rodando.`;
             } finally {
-                loadingSpinner.style.display = 'none';
+                loadingSpinner.style.display = 'none'; // Esconde o spinner
             }
         });
 
         // Lógica dos botões de feedback
-        correctBtn.addEventListener('click', () => sendFeedback(currentPredictedClass));
+        correctBtn.addEventListener('click', () => {
+            sendFeedback(currentPredictedClass);
+        });
+
         incorrectBtn.addEventListener('click', () => {
             correctClassSelect.style.display = 'inline-block'; // Mostra o select
             correctClassSelect.focus(); // Foca no select
+            // Desativa os botões de Sim/Não para evitar múltiplas escolhas
+            correctBtn.disabled = true; 
+            incorrectBtn.disabled = true;
         });
-        correctClassSelect.addEventListener('change', () => sendFeedback(correctClassSelect.value));
+
+        correctClassSelect.addEventListener('change', () => {
+            sendFeedback(correctClassSelect.value);
+        });
 
 
         async function sendFeedback(userCorrectClass) {
@@ -258,9 +270,7 @@
             }
 
             feedbackMessage.textContent = 'Enviando feedback...';
-            correctBtn.disabled = true;
-            incorrectBtn.disabled = true;
-            correctClassSelect.disabled = true;
+            disableFeedbackButtons(true); // Desativa todos os botões/select enquanto envia
 
             try {
                 const response = await fetch('/feedback', {
@@ -290,10 +300,7 @@
                 feedbackMessage.style.color = 'red';
                 feedbackMessage.textContent = `Erro de conexão ao enviar feedback: ${error.message}`;
             } finally {
-                // Desativa os botões de feedback após o envio para evitar duplicação
-                correctBtn.style.display = 'none';
-                incorrectBtn.style.display = 'none';
-                correctClassSelect.style.display = 'none';
+                disableFeedbackButtons(true); // Garante que fiquem desativados após envio
             }
         }
 
@@ -304,7 +311,8 @@
             probabilitiesList.innerHTML = '';
             errorMessage.textContent = '';
             resultContainer.style.display = 'none'; // Esconde o container inteiro
-            hideFeedbackButtons(); // Esconde os botões de feedback
+            disableFeedbackButtons(false); // Reativa os botões para a próxima predição
+            hideFeedbackButtons(); // Esconde os botões no reset
             feedbackMessage.textContent = ''; // Limpa mensagem de feedback
             currentPredictionId = null;
             currentPredictedClass = null;
@@ -315,15 +323,19 @@
             correctBtn.style.display = 'inline-block';
             incorrectBtn.style.display = 'inline-block';
             correctClassSelect.style.display = 'none'; // Esconde o select por padrão
-            correctBtn.disabled = false;
-            incorrectBtn.disabled = false;
-            correctClassSelect.disabled = false;
+            disableFeedbackButtons(false); // Garante que estejam habilitados quando visíveis
         }
 
         function hideFeedbackButtons() {
             correctBtn.style.display = 'none';
             incorrectBtn.style.display = 'none';
             correctClassSelect.style.display = 'none';
+        }
+
+        function disableFeedbackButtons(isDisabled) {
+            correctBtn.disabled = isDisabled;
+            incorrectBtn.disabled = isDisabled;
+            correctClassSelect.disabled = isDisabled;
         }
 
         // Esconde os botões de feedback no carregamento inicial
