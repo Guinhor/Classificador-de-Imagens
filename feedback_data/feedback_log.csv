@@ -1,0 +1,3 @@
+timestamp,prediction_id,predicted_class,user_feedback_class,image_path
+2025-06-02T15:04:35.400845,80de07e0-3939-4040-8143-a95c59e512e3,truck,truck,./feedback_data\80de07e0-3939-4040-8143-a95c59e512e3.jpeg
+2025-06-02T15:06:48.242284,2548dd6f-7ba2-4f3b-b7af-3ab87f2e2eb7,automobile,automobile,./feedback_data\2548dd6f-7ba2-4f3b-b7af-3ab87f2e2eb7.jpeg

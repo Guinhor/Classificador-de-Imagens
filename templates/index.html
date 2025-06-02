@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Classificador CIFAR-10</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+        .container {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 90%;
+            max-width: 500px;
+        }
+        h1 {
+            color: #0056b3;
+            margin-bottom: 20px;
+        }
+        input[type="file"] {
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 4px;
+            width: calc(100% - 22px);
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #result-container {
+            margin-top: 30px;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+            display: none; /* Escondido por padrão */
+        }
+        #result-container h2 {
+            color: #28a745;
+            margin-bottom: 10px;
+        }
+        #prediction-image {
+            max-width: 150px;
+            max-height: 150px;
+            margin-top: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        .loading-spinner {
+            display: none;
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #007bff;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .probabilities p {
+            margin: 5px 0;
+            font-size: 0.9em;
+        }
+        .probabilities strong {
+            color: #555;
+        }
+        /* Estilos para feedback */
+        .feedback-section {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px dashed #ddd;
+        }
+        .feedback-section h3 {
+            color: #007bff;
+            margin-bottom: 10px;
+        }
+        .feedback-buttons button {
+            background-color: #28a745; /* Green for Correct */
+            margin: 5px;
+            padding: 8px 15px;
+            font-size: 14px;
+        }
+        .feedback-buttons button:hover {
+            background-color: #218838;
+        }
+        .feedback-buttons button.incorrect {
+            background-color: #dc3545; /* Red for Incorrect */
+        }
+        .feedback-buttons button.incorrect:hover {
+            background-color: #c82333;
+        }
+        .feedback-buttons select {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Classificador de Imagens CIFAR-10</h1>
+        <form id="upload-form" enctype="multipart/form-data">
+            <input type="file" id="image-input" name="file" accept="image/*">
+            <button type="submit">Identificar Imagem</button>
+        </form>
+
+        <div class="loading-spinner" id="loading-spinner"></div>
+        
+        <div id="result-container">
+            <h2>Resultado da Predição:</h2>
+            <img id="prediction-image" src="#" alt="Imagem para predição">
+            <p id="prediction-text"></p>
+            <div id="probabilities-list" class="probabilities"></div>
+
+            <div class="feedback-section">
+                <h3>A predição estava correta?</h3>
+                <div class="feedback-buttons">
+                    <button id="correct-btn">Sim, estava correta</button>
+                    <button id="incorrect-btn" class="incorrect">Não, estava errada</button>
+                    <select id="correct-class-select" style="display:none;">
+                        </select>
+                </div>
+                <p id="feedback-message" style="margin-top:10px; font-weight:bold; color:blue;"></p>
+            </div>
+            <p id="error-message" class="error"></p>
+        </div>
+    </div>
+
+    <script>
+        const uploadForm = document.getElementById('upload-form');
+        const imageInput = document.getElementById('image-input');
+        const predictionImage = document.getElementById('prediction-image');
+        const predictionText = document.getElementById('prediction-text');
+        const probabilitiesList = document.getElementById('probabilities-list');
+        const errorMessage = document.getElementById('error-message');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const resultContainer = document.getElementById('result-container');
+
+        // Elementos de feedback
+        const correctBtn = document.getElementById('correct-btn');
+        const incorrectBtn = document.getElementById('incorrect-btn');
+        const correctClassSelect = document.getElementById('correct-class-select');
+        const feedbackMessage = document.getElementById('feedback-message');
+        const classNames = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck'];
+
+        // Variáveis globais para armazenar dados da última predição
+        let currentPredictionId = null;
+        let currentPredictedClass = null;
+        let currentOriginalFilename = null; // Para a extensão do arquivo no feedback
+
+        // Preenche o select de classes para correção
+        classNames.forEach((name, index) => {
+            const option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            correctClassSelect.appendChild(option);
+        });
+
+        uploadForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const file = imageInput.files[0];
+            if (!file) {
+                errorMessage.textContent = 'Por favor, selecione um arquivo de imagem.';
+                resetResults();
+                return;
+            }
+
+            resetResults();
+            loadingSpinner.style.display = 'block';
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                predictionImage.src = e.target.result;
+                predictionImage.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+
+            const formData = new FormData();
+            formData.append('file', file); 
+            
+            // Salva o nome original do arquivo para usar no feedback
+            currentOriginalFilename = file.name;
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    currentPredictionId = data.prediction_id; // Armazena o ID
+                    currentPredictedClass = data.prediction; // Armazena a predição original
+
+                    predictionText.textContent = `Predição: ${data.prediction} (Confiança: ${data.confidence})`;
+                    
+                    probabilitiesList.innerHTML = '<h3>Todas as Probabilidades:</h3>';
+                    for (const [key, value] of Object.entries(data.all_probabilities)) {
+                        const p = document.createElement('p');
+                        p.innerHTML = `<strong>${key}:</strong> ${value}`;
+                        probabilitiesList.appendChild(p);
+                    }
+                    resultContainer.style.display = 'block'; // Mostra o container de resultados
+                    showFeedbackButtons(); // Mostra os botões de feedback
+                } else {
+                    errorMessage.textContent = `Erro da API: ${data.error || 'Ocorreu um erro desconhecido.'}`;
+                }
+            } catch (error) {
+                console.error('Erro ao enviar a requisição:', error);
+                errorMessage.textContent = `Erro de conexão: ${error.message}. Verifique se o servidor está rodando.`;
+            } finally {
+                loadingSpinner.style.display = 'none';
+            }
+        });
+
+        // Lógica dos botões de feedback
+        correctBtn.addEventListener('click', () => sendFeedback(currentPredictedClass));
+        incorrectBtn.addEventListener('click', () => {
+            correctClassSelect.style.display = 'inline-block'; // Mostra o select
+            correctClassSelect.focus(); // Foca no select
+        });
+        correctClassSelect.addEventListener('change', () => sendFeedback(correctClassSelect.value));
+
+
+        async function sendFeedback(userCorrectClass) {
+            if (!currentPredictionId || !currentPredictedClass) {
+                feedbackMessage.textContent = 'Nenhuma predição ativa para feedback.';
+                return;
+            }
+
+            feedbackMessage.textContent = 'Enviando feedback...';
+            correctBtn.disabled = true;
+            incorrectBtn.disabled = true;
+            correctClassSelect.disabled = true;
+
+            try {
+                const response = await fetch('/feedback', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        prediction_id: currentPredictionId,
+                        predicted_class: currentPredictedClass,
+                        user_feedback_class: userCorrectClass,
+                        original_filename: currentOriginalFilename // Envia o nome original para a extensão
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    feedbackMessage.style.color = 'green';
+                    feedbackMessage.textContent = data.message;
+                } else {
+                    feedbackMessage.style.color = 'red';
+                    feedbackMessage.textContent = `Erro ao enviar feedback: ${data.message || 'Erro desconhecido'}`;
+                }
+            } catch (error) {
+                console.error('Erro ao enviar feedback:', error);
+                feedbackMessage.style.color = 'red';
+                feedbackMessage.textContent = `Erro de conexão ao enviar feedback: ${error.message}`;
+            } finally {
+                // Desativa os botões de feedback após o envio para evitar duplicação
+                correctBtn.style.display = 'none';
+                incorrectBtn.style.display = 'none';
+                correctClassSelect.style.display = 'none';
+            }
+        }
+
+        function resetResults() {
+            predictionImage.style.display = 'none';
+            predictionImage.src = '#';
+            predictionText.textContent = '';
+            probabilitiesList.innerHTML = '';
+            errorMessage.textContent = '';
+            resultContainer.style.display = 'none'; // Esconde o container inteiro
+            hideFeedbackButtons(); // Esconde os botões de feedback
+            feedbackMessage.textContent = ''; // Limpa mensagem de feedback
+            currentPredictionId = null;
+            currentPredictedClass = null;
+            currentOriginalFilename = null;
+        }
+
+        function showFeedbackButtons() {
+            correctBtn.style.display = 'inline-block';
+            incorrectBtn.style.display = 'inline-block';
+            correctClassSelect.style.display = 'none'; // Esconde o select por padrão
+            correctBtn.disabled = false;
+            incorrectBtn.disabled = false;
+            correctClassSelect.disabled = false;
+        }
+
+        function hideFeedbackButtons() {
+            correctBtn.style.display = 'none';
+            incorrectBtn.style.display = 'none';
+            correctClassSelect.style.display = 'none';
+        }
+
+        // Esconde os botões de feedback no carregamento inicial
+        hideFeedbackButtons();
+    </script>
+</body>
+</html>
