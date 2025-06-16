@@ -5,9 +5,9 @@ import numpy as np
 from PIL import Image
 import io
 import cv2
-import uuid # NOVO: Para gerar IDs únicos
-import csv  # NOVO: Para gravar o log de feedback
-import datetime # NOVO: Para timestamp
+import uuid
+import csv  
+import datetime
 
 print("--- Script app.py iniciado ---")
 
@@ -105,7 +105,7 @@ def predict():
         predicted_class_name = CLASS_NAMES[predicted_class_index]
 
         response = {
-            "prediction_id": prediction_id, # NOVO: Envia o ID da predição
+            "prediction_id": prediction_id,
             "prediction": predicted_class_name,
             "confidence": f"{confidence * 100:.2f}%",
             "all_probabilities": {name: f"{prob * 100:.2f}%" for name, prob in zip(CLASS_NAMES, predictions[0])}
@@ -137,13 +137,11 @@ def feedback():
         print("Erro: Dados de feedback incompletos.")
         return jsonify({"status": "error", "message": "Dados de feedback incompletos."}), 400
 
-    # Verifica se a imagem temporária existe
     if os.path.exists(image_temp_path):
         final_image_path = os.path.join(FEEDBACK_DATA_DIR, os.path.basename(image_temp_path))
         os.rename(image_temp_path, final_image_path)
         print(f"Imagem movida para: {final_image_path}")
 
-        # Registra o feedback no arquivo CSV
         with open(FEEDBACK_LOG_FILE, 'a', newline='') as f:
             writer = csv.writer(f)
             writer.writerow([

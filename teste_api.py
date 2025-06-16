@@ -8,7 +8,6 @@ API_URL = "http://127.0.0.1:5000/predict"
 IMAGE_PATH = "caminhao.jpg"
 
 def test_prediction():
-    # Verifica se o arquivo de imagem existe
     if not os.path.exists(IMAGE_PATH):
         print(f"Erro: Imagem não encontrada em '{IMAGE_PATH}'")
         print("Por favor, certifique-se de que o caminho para a imagem está correto.")
@@ -19,7 +18,7 @@ def test_prediction():
     try:
         # Abre o arquivo de imagem em modo binário para enviar via POST
         with open(IMAGE_PATH, 'rb') as f:
-            files = {'file': (os.path.basename(IMAGE_PATH), f.read(), 'image/jpg')} # Mude 'image/png' se for .jpg, etc.
+            files = {'file': (os.path.basename(IMAGE_PATH), f.read(), 'image/jpg')}
             
             # Envia a requisição POST para a API com o arquivo
             response = requests.post(API_URL, files=files)
