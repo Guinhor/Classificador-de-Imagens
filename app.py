@@ -85,7 +85,6 @@ def predict():
         print(f"Imagem salva temporariamente em: {temp_image_path}")
 
         # Re-abrir a imagem do caminho temporário para processamento com Pillow
-        # (Isso evita problemas se file.read() já foi chamado uma vez)
         with open(temp_image_path, 'rb') as f:
             img_pil = Image.open(f).convert('RGB')
         
@@ -115,7 +114,6 @@ def predict():
 
     except Exception as e:
         print(f"Erro interno ao processar a imagem no try/except: {str(e)}")
-        # Se houver erro, tente remover o arquivo temporário
         if os.path.exists(temp_image_path):
             os.remove(temp_image_path)
         return jsonify({"error": f"Erro interno ao processar a imagem: {str(e)}"}), 500
@@ -124,12 +122,12 @@ def predict():
 # --- NOVA ROTA para receber feedback do usuário ---
 @app.route('/feedback', methods=['POST'])
 def feedback():
-    data = request.get_json() # Espera um JSON com o feedback
+    data = request.get_json()
 
     prediction_id = data.get('prediction_id')
     predicted_class = data.get('predicted_class')
-    user_feedback_class = data.get('user_feedback_class') # Será a classe correta, se houver
-    image_temp_path = os.path.join(TEMP_UPLOAD_DIR, f"{prediction_id}{os.path.splitext(data.get('original_filename', ''))[1]}") # Precisa do filename original para extensão
+    user_feedback_class = data.get('user_feedback_class')
+    image_temp_path = os.path.join(TEMP_UPLOAD_DIR, f"{prediction_id}{os.path.splitext(data.get('original_filename', ''))[1]}")
 
     print(f"\n--- Feedback Recebido para ID: {prediction_id} ---")
     print(f"Predição Original: {predicted_class}")
@@ -141,7 +139,6 @@ def feedback():
 
     # Verifica se a imagem temporária existe
     if os.path.exists(image_temp_path):
-        # Move a imagem para a pasta de feedback_data
         final_image_path = os.path.join(FEEDBACK_DATA_DIR, os.path.basename(image_temp_path))
         os.rename(image_temp_path, final_image_path)
         print(f"Imagem movida para: {final_image_path}")
@@ -159,7 +156,6 @@ def feedback():
         print("Feedback registrado no CSV.")
     else:
         print(f"Aviso: Imagem temporária '{image_temp_path}' não encontrada para o feedback.")
-        # Se a imagem não foi encontrada, ainda registramos o feedback textual
         with open(FEEDBACK_LOG_FILE, 'a', newline='') as f:
             writer = csv.writer(f)
             writer.writerow([
@@ -167,7 +163,7 @@ def feedback():
                 prediction_id,
                 predicted_class,
                 user_feedback_class,
-                "NOT_FOUND_FOR_FEEDBACK" # Indica que a imagem original não foi salva/encontrada
+                "NOT_FOUND_FOR_FEEDBACK"
             ])
 
     return jsonify({"status": "success", "message": "Feedback registrado com sucesso!"}), 200
